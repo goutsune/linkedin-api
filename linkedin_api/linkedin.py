@@ -9,6 +9,7 @@ import uuid
 from operator import itemgetter
 from time import sleep, time
 from urllib.parse import quote, urlencode
+from datetime import datetime, timedelta
 
 from linkedin_api.client import Client
 from linkedin_api.utils.helpers import (
@@ -945,6 +946,68 @@ class Linkedin(object):
         school = data["elements"][0]
 
         return school
+
+    def get_page_as_admin(self, public_id, range_start=None, range_end=None):
+        """Fetch data about a given LinkedIn company page as an admin.
+
+        :param public_id: LinkedIn public ID for a company
+        :type public_id: str
+
+        :return: Admin page data
+        :rtype: dict
+        """
+
+        # NB: This does not take timezones into account
+        if range_end is None:
+            # some padding is required for native timestamp format
+            range_end = datetime.now().strftime('%s000')
+        if range_start is None:
+            range_start = (datetime.now() - timedelta(weeks=1)).strftime('%s999')
+
+        # This returns 2 items in 'premiumDashAnalyticsViewByAnalyticsEntity' dict:
+        # 1. Card with aggregated highlights for a time range
+        # 2. Card with metrics graphs
+        # FIXME: There seem to be an url encoding issue with passing this as request parameter, passing
+        # as string instead. Will need to be fixed if we're implementing graphql request language later.
+        res  = self._fetch(
+            f"/graphql?includeWebMetadata=false&variables="
+            f"(analyticsEntityUrn:(company:urn%3Ali%3Afsd_company%3A{public_id}),"
+            f"surfaceType:ORGANIZATION_AGGREGATED_POSTS,query:(selectedFilters:"
+            f"List((key:timeRange,value:List({range_start},{range_end})))))&"
+            f"queryId=voyagerPremiumDashAnalyticsView.ea03e6f2676ac829beee68fd7ee5a729")
+
+        data = res.json()['data']
+
+        if 'premiumDashAnalyticsViewByAnalyticsEntity' not in data:
+            raise Exception(f'AnalyticsEntity not found in response: {res.text}')
+
+        # Hacky way to extract analytics cards without dwelling too much into schema for now
+        items = data['premiumDashAnalyticsViewByAnalyticsEntity']['elements'][0]['sections'][0]['card']
+        # Get card names so we can access them later
+        cards = { x['header']['title']['text'] : x['component'] for x in items }
+
+        highlights = {
+            x['description']['text']:x['title']['text'] for x in
+            cards['Highlights']['infoList']['items'] }
+
+        # NB: These metrics represent "Impressions" which are selected by default. Other known graphs:
+        # ['IMPRESSIONS', 'UNIQUE_IMPRESSIONS', 'CLICKS',
+        #  'REACTIONS', 'COMMENTS',  'RESHARES',  'ENGAGEMENT_RATE']
+        metrics = {
+            graph['yValueUnit']: [
+                (point['xValue'], point['yValue'])
+                for point in graph['points']]
+            for graph in cards['Metrics']['dataSeriesModule']['dataSeries']}
+
+        compiled_analytics = {
+            'start': range_start,
+            'end': range_end,
+            'highlights': highlights,
+            'metrics': metrics
+        }
+
+        return compiled_analytics
+
 
     def get_company(self, public_id):
         """Fetch data about a given LinkedIn company.
