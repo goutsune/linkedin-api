@@ -947,7 +947,42 @@ class Linkedin(object):
 
         return school
 
-    def get_aggregated_company_data(self, public_id, range_start=None, range_end=None):
+    def get_admin_analytics_chart(self, public_id, chart_id, range_start=None, range_end=None):
+        """Fetch additional chart data from page analytics tab
+        """
+
+        # NB: This does not take timezones into account
+        if range_end is None:
+            # some padding is required for native timestamp format
+            range_end = datetime.now().strftime('%s999')
+        if range_start is None:
+            range_start = (datetime.now() - timedelta(weeks=4)).strftime('%s000')
+
+        res  = self._fetch(
+            f'/graphql?includeWebMetadata=true&variables=(edgeInsightsAnalyticsCardUrns:'
+            f'List(urn%3Ali%3Afsd_edgeInsightsAnalyticsCard%3A%28ORGANIZATION_AGGREGATED_POSTS%2C'
+            f'urn%3Ali%3Afsd_company%3A{public_id}%2CANALYTICS%2CDATA_SERIES%2C'
+            f'ORGANIZATION_AGGREGATED_POSTS_DATA_SERIES%29),'
+            f'query:(selectedFilters:List((key:resultType,value:List({chart_id})),'
+            f'(key:timeRange,value:List({range_start},{range_end})))))'
+            f'&queryId=voyagerPremiumDashAnalyticsCard.55f66614ad3fa9c98f6bfe381d15c138')
+
+        data = res.json()['data']
+
+        if 'premiumDashAnalyticsCardByIds' not in data:
+            raise Exception(f'AnalyticsCard not found in response: {res.text}')
+
+        charts = data['premiumDashAnalyticsCardByIds'][0]['component']
+
+        metrics = {
+            graph['yValueUnit']: [
+                (point['xValue'], point['yValue'])
+                for point in graph['points']]
+            for graph in charts['dataSeriesModule']['dataSeries']}
+
+        return metrics
+
+    def get_admin_analytics(self, public_id, range_start=None, range_end=None):
         """Fetch data about a given LinkedIn company page as an admin.
 
         :param public_id: LinkedIn public ID for a company
@@ -988,9 +1023,7 @@ class Linkedin(object):
             cards['Highlights']['infoList']['items'] }
 
         # NB: These metrics represent "Impressions" which are selected by default. Other known graphs:
-        # ['IMPRESSIONS', 'UNIQUE_IMPRESSIONS', 'CLICKS',
-        #  'REACTIONS', 'COMMENTS',  'RESHARES',  'ENGAGEMENT_RATE']
-        metrics = {
+        impressions = {
             graph['yValueUnit']: [
                 (point['xValue'], point['yValue'])
                 for point in graph['points']]
@@ -1000,11 +1033,23 @@ class Linkedin(object):
             'start': range_start,
             'end': range_end,
             'highlights': highlights,
-            'metrics': metrics}
+            'impressions': impressions,
+            'unique_impressions': self.get_admin_analytics_chart(
+                public_id, 'UNIQUE_IMPRESSIONS', range_start, range_end),
+            'clicks': self.get_admin_analytics_chart(
+                public_id, 'CLICKS', range_start, range_end),
+            'reactions': self.get_admin_analytics_chart(
+                public_id, 'REACTIONS', range_start, range_end),
+            'comments': self.get_admin_analytics_chart(
+                public_id, 'COMMENTS', range_start, range_end),
+            'reshares': self.get_admin_analytics_chart(
+                public_id, 'RESHARES', range_start, range_end),
+            'engagement_rate': self.get_admin_analytics_chart(
+                public_id, 'ENGAGEMENT_RATE', range_start, range_end)}
 
         return compiled_analytics
 
-    def get_admin_feed_updates(self, public_id, range_start=None, range_end=None):
+    def get_admin_analytics_feed(self, public_id, range_start=None, range_end=None):
         """Fetch company page updates per feed item.
 
         :param public_id: LinkedIn public ID for a company
