@@ -947,7 +947,7 @@ class Linkedin(object):
 
         return school
 
-    def get_page_as_admin(self, public_id, range_start=None, range_end=None):
+    def get_aggregated_company_data(self, public_id, range_start=None, range_end=None):
         """Fetch data about a given LinkedIn company page as an admin.
 
         :param public_id: LinkedIn public ID for a company
@@ -960,13 +960,10 @@ class Linkedin(object):
         # NB: This does not take timezones into account
         if range_end is None:
             # some padding is required for native timestamp format
-            range_end = datetime.now().strftime('%s000')
+            range_end = datetime.now().strftime('%s999')
         if range_start is None:
-            range_start = (datetime.now() - timedelta(weeks=1)).strftime('%s999')
+            range_start = (datetime.now() - timedelta(weeks=4)).strftime('%s000')
 
-        # This returns 2 items in 'premiumDashAnalyticsViewByAnalyticsEntity' dict:
-        # 1. Card with aggregated highlights for a time range
-        # 2. Card with metrics graphs
         # FIXME: There seem to be an url encoding issue with passing this as request parameter, passing
         # as string instead. Will need to be fixed if we're implementing graphql request language later.
         res  = self._fetch(
@@ -1003,11 +1000,57 @@ class Linkedin(object):
             'start': range_start,
             'end': range_end,
             'highlights': highlights,
-            'metrics': metrics
-        }
+            'metrics': metrics}
 
         return compiled_analytics
 
+    def get_admin_feed_updates(self, public_id, range_start=None, range_end=None):
+        """Fetch company page updates per feed item.
+
+        :param public_id: LinkedIn public ID for a company
+        :type public_id: str
+
+        :return: Admin page data
+        :rtype: dict
+        """
+        # NB: This does not take timezones into account
+        if range_end is None:
+            # some padding is required for native timestamp format
+            range_end = datetime.now().strftime('%s999')
+        if range_start is None:
+            range_start = (datetime.now() - timedelta(weeks=1)).strftime('%s000')
+
+        res  = self._fetch(
+            f"/graphql?variables=(organizationalPageUrn:urn%3Ali%3Afsd_organizationalPage%3A{public_id},"
+            f"timeRange:(start:{range_start},end:{range_end}),start:0,count:20)&"
+            f"queryId=voyagerFeedDashOrganizationalPageAdminUpdates.885300bbac4b14f918a293cb5bd02a5f")
+
+        data = res.json()['data']
+
+        if 'feedDashOrganizationalPageAdminUpdatesByAdminFeedByTimeRange' not in data:
+            raise Exception(f'OrganizationalPageAdminUpdates not found in response: {res.text}')
+
+        items = data['feedDashOrganizationalPageAdminUpdatesByAdminFeedByTimeRange']['elements']
+
+        stats = {
+            'start': range_start,
+            'end': range_end,
+            'posts' : [{
+                'author': f'{item["creator"]["firstName"]} {item["creator"]["lastName"]}',
+                'date': datetime.fromtimestamp(item['publishedAt'] / 1000),
+                'permalink': item['permalink'],
+
+                'clicks' : item['organicAnalytics']['clicks'],
+                'clickthrough_rate' : item['organicAnalytics']['clickThroughRate'],
+                'comments' : item['organicAnalytics']['comments'],
+                'engagement_rate' : item['organicAnalytics']['engagementRate'],
+                'impressions' : item['organicAnalytics']['impressions'],
+                'reactions' : item['organicAnalytics']['reactions'],
+                'shares' : item['organicAnalytics']['shares'],
+
+            } for item in items ]}
+
+        return stats
 
     def get_company(self, public_id):
         """Fetch data about a given LinkedIn company.
