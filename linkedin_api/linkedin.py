@@ -994,10 +994,14 @@ class Linkedin(object):
 
         # NB: This does not take timezones into account
         if range_end is None:
-            # some padding is required for native timestamp format
-            range_end = datetime.now().strftime('%s999')
+            range_end = datetime.now()
+
         if range_start is None:
-            range_start = (datetime.now() - timedelta(weeks=4)).strftime('%s000')
+            range_start = (datetime.now() - timedelta(weeks=4))
+
+        # some padding is required for native timestamp format
+        range_end = range_end.strftime('%s999')
+        range_start = range_start.strftime('%s000')
 
         # FIXME: There seem to be an url encoding issue with passing this as request parameter, passing
         # as string instead. Will need to be fixed if we're implementing graphql request language later.
@@ -1060,10 +1064,14 @@ class Linkedin(object):
         """
         # NB: This does not take timezones into account
         if range_end is None:
-            # some padding is required for native timestamp format
-            range_end = datetime.now().strftime('%s999')
+            range_end = datetime.now()
+
         if range_start is None:
-            range_start = (datetime.now() - timedelta(weeks=1)).strftime('%s000')
+            range_start = (datetime.now() - timedelta(weeks=4))
+
+        # some padding is required for native timestamp format
+        range_end = range_end.strftime('%s999')
+        range_start = range_start.strftime('%s000')
 
         res  = self._fetch(
             f"/graphql?variables=(organizationalPageUrn:urn%3Ali%3Afsd_organizationalPage%3A{public_id},"
