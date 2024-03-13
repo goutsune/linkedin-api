@@ -1089,6 +1089,7 @@ class Linkedin(object):
             'start': range_start,
             'end': range_end,
             'posts' : [{
+                'id': item['permalink'].split('/')[-1],
                 'author': f'{item["creator"]["firstName"]} {item["creator"]["lastName"]}',
                 'date': datetime.fromtimestamp(item['publishedAt'] / 1000),
                 'permalink': item['permalink'],
