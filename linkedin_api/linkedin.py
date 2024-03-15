@@ -1106,7 +1106,7 @@ class Linkedin(object):
                 'reactions' : item['organicAnalytics']['reactions'],
                 'shares' : item['organicAnalytics']['shares'],
 
-            } for item in items ]}
+            } for item in items if item['organicAnalytics'] is not None ]}
 
         return stats
 
