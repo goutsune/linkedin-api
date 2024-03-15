@@ -953,10 +953,14 @@ class Linkedin(object):
 
         # NB: This does not take timezones into account
         if range_end is None:
-            # some padding is required for native timestamp format
-            range_end = datetime.now().strftime('%s999')
+            range_end = datetime.now()
+
         if range_start is None:
-            range_start = (datetime.now() - timedelta(weeks=4)).strftime('%s000')
+            range_start = (datetime.now() - timedelta(weeks=4))
+
+        # some padding is required for native timestamp format
+        stamp_end = range_end.strftime('%s999')
+        stamp_start = range_start.strftime('%s000')
 
         res  = self._fetch(
             f'/graphql?includeWebMetadata=true&variables=(edgeInsightsAnalyticsCardUrns:'
@@ -964,7 +968,7 @@ class Linkedin(object):
             f'urn%3Ali%3Afsd_company%3A{public_id}%2CANALYTICS%2CDATA_SERIES%2C'
             f'ORGANIZATION_AGGREGATED_POSTS_DATA_SERIES%29),'
             f'query:(selectedFilters:List((key:resultType,value:List({chart_id})),'
-            f'(key:timeRange,value:List({range_start},{range_end})))))'
+            f'(key:timeRange,value:List({stamp_start},{stamp_end})))))'
             f'&queryId=voyagerPremiumDashAnalyticsCard.55f66614ad3fa9c98f6bfe381d15c138')
 
         data = res.json()['data']
@@ -1000,8 +1004,8 @@ class Linkedin(object):
             range_start = (datetime.now() - timedelta(weeks=4))
 
         # some padding is required for native timestamp format
-        range_end = range_end.strftime('%s999')
-        range_start = range_start.strftime('%s000')
+        stamp_end = range_end.strftime('%s999')
+        stamp_start = range_start.strftime('%s000')
 
         # FIXME: There seem to be an url encoding issue with passing this as request parameter, passing
         # as string instead. Will need to be fixed if we're implementing graphql request language later.
@@ -1009,7 +1013,7 @@ class Linkedin(object):
             f"/graphql?includeWebMetadata=false&variables="
             f"(analyticsEntityUrn:(company:urn%3Ali%3Afsd_company%3A{public_id}),"
             f"surfaceType:ORGANIZATION_AGGREGATED_POSTS,query:(selectedFilters:"
-            f"List((key:timeRange,value:List({range_start},{range_end})))))&"
+            f"List((key:timeRange,value:List({stamp_start},{stamp_end})))))&"
             f"queryId=voyagerPremiumDashAnalyticsView.ea03e6f2676ac829beee68fd7ee5a729")
 
         data = res.json()['data']
@@ -1070,12 +1074,12 @@ class Linkedin(object):
             range_start = (datetime.now() - timedelta(weeks=4))
 
         # some padding is required for native timestamp format
-        range_end = range_end.strftime('%s999')
-        range_start = range_start.strftime('%s000')
+        stamp_end = range_end.strftime('%s999')
+        stamp_start = range_start.strftime('%s000')
 
         res  = self._fetch(
             f"/graphql?variables=(organizationalPageUrn:urn%3Ali%3Afsd_organizationalPage%3A{public_id},"
-            f"timeRange:(start:{range_start},end:{range_end}),start:0,count:20)&"
+            f"timeRange:(start:{stamp_start},end:{stamp_end}),start:0,count:20)&"
             f"queryId=voyagerFeedDashOrganizationalPageAdminUpdates.885300bbac4b14f918a293cb5bd02a5f")
 
         data = res.json()['data']
